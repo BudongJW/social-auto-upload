@@ -106,6 +106,7 @@ python auto_pipeline.py
 ```
 
 자동으로 `videos/` 폴더에 영상 + 메타데이터가 복사된 후 TikTok 업로드가 진행됩니다.
+업로드 완료 후 `videos/` 내 임시 파일(.mp4, .txt, .png)은 자동 삭제됩니다.
 
 ### 단독 업로드 (영상 파일을 직접 넣을 때)
 
@@ -151,9 +152,7 @@ social-auto-upload/
 ├── cookies/
 │   └── tk_uploader/
 │       └── account.json                 # TikTok 쿠키 (로그인 후 생성)
-├── videos/                              # 업로드할 영상 + 메타데이터
-│   ├── example.mp4
-│   └── example.txt
+├── videos/                              # 업로드할 영상 + 메타데이터 (파이프라인 완료 시 자동 삭제)
 ├── uploader/
 │   └── tk_uploader/
 │       ├── main_chrome.py               # TikTok 업로드 (Playwright)

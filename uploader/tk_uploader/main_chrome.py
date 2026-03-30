@@ -22,7 +22,8 @@ async def cookie_auth(account_file):
         page = await context.new_page()
         # 访问指定的 URL
         await page.goto("https://www.tiktok.com/tiktokstudio/upload?lang=en")
-        await page.wait_for_load_state('networkidle')
+        await page.wait_for_load_state('domcontentloaded')
+        await page.wait_for_timeout(5000)
         try:
             # 选择所有的 select 元素
             select_elements = await page.query_selector_all('select')
@@ -147,7 +148,7 @@ class TiktokVideo(object):
         await file_chooser.set_files(self.file_path)
 
     async def upload(self, playwright: Playwright) -> None:
-        browser = await playwright.chromium.launch(headless=self.headless, executable_path=self.local_executable_path)
+        browser = await playwright.chromium.launch(headless=self.headless, executable_path=self.local_executable_path or None)
         context = await browser.new_context(storage_state=f"{self.account_file}")
         # context = await set_init_script(context)
         page = await context.new_page()
@@ -175,6 +176,45 @@ class TiktokVideo(object):
             await upload_button.click()
         file_chooser = await fc_info.value
         await file_chooser.set_files(self.file_path)
+        await page.wait_for_timeout(5000)  # wait for upload to start and modals to appear
+
+        # dismiss any modal overlays (e.g. copyright/content check notification)
+        for _ in range(3):
+            try:
+                modal = page.locator('div.TUXModal-overlay')
+                if await modal.count() > 0:
+                    # Try common dismiss buttons
+                    for btn_text in ["Turn on", "Cancel", "Got it", "Close", "OK", "Confirm"]:
+                        btn = modal.locator(f'button:has-text("{btn_text}")')
+                        if await btn.count() > 0:
+                            await btn.first.click()
+                            await page.wait_for_timeout(1500)
+                            tiktok_logger.info(f'[+] Dismissed modal overlay via "{btn_text}"')
+                            break
+                else:
+                    break
+            except Exception:
+                break
+
+        # dismiss joyride tutorial overlay
+        try:
+            joyride = page.locator('#react-joyride-portal')
+            if await joyride.count() > 0:
+                # try clicking Skip or X button in joyride
+                for selector in ['button:has-text("Skip")', 'button:has-text("Next")', 'button:has-text("Got it")', 'button[aria-label="Close"]', 'button:has-text("×")']:
+                    btn = joyride.locator(selector)
+                    if await btn.count() > 0:
+                        await btn.first.click()
+                        await page.wait_for_timeout(500)
+                        tiktok_logger.info(f'[+] Dismissed joyride via {selector}')
+                        break
+                else:
+                    # fallback: remove joyride via JS
+                    await page.evaluate('document.getElementById("react-joyride-portal")?.remove()')
+                    tiktok_logger.info('[+] Removed joyride portal via JS')
+                await page.wait_for_timeout(1000)
+        except Exception:
+            pass
 
         await self.add_title_tags(page)
         # detect upload status
@@ -254,14 +294,22 @@ class TiktokVideo(object):
         await page.locator('#creator-tools-selection-menu-header >> text=English (US)').click()
 
     async def click_publish(self, page):
-        success_flag_div = 'div.common-modal-confirm-modal'
         while True:
             try:
                 publish_button = self.locator_base.locator('div.button-group button').nth(0)
                 if await publish_button.count():
                     await publish_button.click()
 
-                await page.wait_for_url("https://www.tiktok.com/tiktokstudio/content",  timeout=3000)
+                # handle "Continue to post?" confirmation modal
+                await page.wait_for_timeout(2000)
+                for btn_text in ["Post now", "Post", "Continue"]:
+                    confirm_btn = page.locator(f'button:has-text("{btn_text}")')
+                    if await confirm_btn.count() > 0:
+                        await confirm_btn.first.click()
+                        tiktok_logger.info(f'  [-] Clicked "{btn_text}" on confirmation modal')
+                        break
+
+                await page.wait_for_url("https://www.tiktok.com/tiktokstudio/content",  timeout=10000)
                 tiktok_logger.success("  [-] video published success")
                 break
             except Exception as e:

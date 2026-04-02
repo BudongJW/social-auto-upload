@@ -1,7 +1,7 @@
-# social-auto-upload - TikTok 자동 업로드
+# social-auto-upload - TikTok & YouTube Shorts 자동 업로드
 
-[Playwright](https://playwright.dev/) 기반 TikTok 영상 자동 업로드 도구.
-[MoneyPrinterTurbo](https://github.com/BudongJW/MoneyPrinterTurbo)와 연동하여 **영상 생성 → 업로드** 파이프라인을 구성합니다.
+[Playwright](https://playwright.dev/) 기반 TikTok & YouTube Shorts 영상 자동 업로드 도구.
+[MoneyPrinterTurbo](https://github.com/BudongJW/MoneyPrinterTurbo)와 연동하여 **영상 생성 → 멀티 플랫폼 업로드** 파이프라인을 구성합니다.
 
 **전체 파이프라인 세팅 가이드는 [MoneyPrinterTurbo README](https://github.com/BudongJW/MoneyPrinterTurbo#readme)를 참고하세요.**
 
@@ -14,7 +14,7 @@
 ```
 부모 폴더/
 ├── MoneyPrinterTurbo/      ← 영상 생성 + 파이프라인 (메인 레포)
-└── social-auto-upload/     ← 이 레포 (TikTok 업로드)
+└── social-auto-upload/     ← 이 레포 (TikTok & YouTube 업로드)
 ```
 
 두 레포가 **같은 부모 폴더**에 나란히 있어야 파이프라인이 동작합니다.
@@ -29,7 +29,7 @@
 | Xiaohongshu (小红书) | O | O | O | O |
 | [YouTube](https://www.youtube.com/) | O | O | - | O |
 
-> 현재 파이프라인에서는 **TikTok**만 사용 중.
+> 현재 파이프라인에서는 **TikTok + YouTube Shorts** 사용 중.
 
 ---
 
@@ -95,6 +95,27 @@ asyncio.run(tiktok_setup('cookies/tk_uploader/account.json', handle=True))
 > 쿠키 만료 시(보통 며칠~2주) 이 과정을 다시 실행.
 > 만료 증상: "Cookie expired. Re-login required." 메시지.
 
+### Step 5. YouTube 로그인 (선택사항, 최초 1회)
+
+YouTube Shorts에도 업로드하고 싶다면 아래 과정을 진행하세요.
+**건너뛰면 TikTok만 업로드됩니다.**
+
+```bash
+python -c "
+import asyncio
+from uploader.yt_uploader.main_chrome import youtube_setup
+asyncio.run(youtube_setup('cookies/yt_uploader/account.json', handle=True))
+"
+```
+
+1. Chromium 브라우저가 열리고 [Google 로그인](https://accounts.google.com/) 페이지로 이동
+2. YouTube 채널이 연결된 **Google 계정**으로 로그인
+3. 로그인 완료 후 Playwright Inspector 창에서 **▶ Resume** 버튼 클릭
+4. `cookies/yt_uploader/account.json`에 세션 쿠키가 저장됨
+
+> 쿠키 만료 시 이 과정을 다시 실행.
+> YouTube 채널이 없으면 [YouTube Studio](https://studio.youtube.com/)에서 먼저 채널을 만드세요.
+
 ---
 
 ## 사용 방법
@@ -109,7 +130,7 @@ python auto_pipeline.py
 
 또는 `MoneyPrinterTurbo/run_pipeline.bat` 더블클릭.
 
-자동으로 영상 생성 → `videos/`에 복사 → TikTok 업로드 → 임시 파일 삭제.
+자동으로 영상 생성 → `videos/`에 복사 → TikTok 업로드 → YouTube Shorts 업로드(쿠키 있으면) → 임시 파일 삭제.
 
 ### 단독 업로드 (영상 파일을 직접 넣을 때)
 
@@ -134,7 +155,8 @@ Why Cats Are The Best Pets
 | 증상 | 원인 | 해결 |
 |---|---|---|
 | `ENOENT` 에러 | Chrome 경로 문제 | `conf.py`의 `LOCAL_CHROME_PATH = ""` 확인 |
-| Cookie expired | 세션 만료 | Step 4 TikTok 로그인 다시 실행 |
+| TikTok Cookie expired | 세션 만료 | Step 4 TikTok 로그인 다시 실행 |
+| YouTube Cookie expired | 세션 만료 | Step 5 YouTube 로그인 다시 실행 |
 | 업로드 중 멈춤 | TikTok UI 변경 | `LOCAL_CHROME_HEADLESS = False`로 바꿔서 확인 |
 | `playwright` 에러 | 브라우저 미설치 | `playwright install chromium` 재실행 |
 | `conf` import 에러 | 설정 파일 없음 | `conf.example.py` → `conf.py` 복사 |
@@ -154,8 +176,10 @@ social-auto-upload/
 ├── conf.py                     # 설정 (conf.example.py에서 복사)
 ├── conf.example.py             # 설정 예제
 ├── cookies/tk_uploader/        # TikTok 쿠키 (로그인 후 자동 생성, .gitignore 대상)
+├── cookies/yt_uploader/        # YouTube 쿠키 (로그인 후 자동 생성, .gitignore 대상)
 ├── videos/                     # 업로드할 영상 (파이프라인 완료 시 자동 삭제)
 ├── uploader/tk_uploader/       # TikTok 업로드 로직 (Playwright)
+├── uploader/yt_uploader/       # YouTube 업로드 로직 (Playwright)
 └── utils/                      # 유틸리티 (메타데이터 파싱 등)
 ```
 
